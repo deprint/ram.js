@@ -14,6 +14,15 @@
 #You should have received a copy of the GNU General Public License
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+starteRam = ->
+  input = document.getElementById('ram_program')
+  machine = asl(input.value)
+  return input.value = machine.error if machine.error isnt ''
+  unless run(machine, [3], 1000, true)
+    input.value = JSON.stringify(get_output(machine))
+  else
+    input.value = machine.error
+
 asl = (input) ->
   machine =
     code: {}
@@ -25,6 +34,7 @@ asl = (input) ->
     continue if input is ''
     [n_ip, value] = ast(line, machine, ip)
     continue if n_ip is -1
+    break unless value?
     ip = n_ip
     machine.code[ip] = value
   machine
@@ -35,27 +45,28 @@ run = (machine, input, limit = -1, snapshots) ->
   machine['ip'] = 0
   machine['steps'] = 0
   machine['memory'] = {}
+  machine['stats'] =
+    command_usage: {}
+    memory_usage: {}
   machine['snaps'] = {} if snapshots?
 
   if machine['input_layout']?
     for key, index in Object.keys(machine['input_layout'])
-      machine.memory[machine.input_layout[key]] = machine[input][index] ? 0
+      machine.memory[machine.input_layout[key]] = machine.input[index] ? 0
 
   while limit is -1 or machine.steps < limit
     current = machine.code[machine.ip]
 
     return machine.error = "Reached nocode at #{machine.ip}" unless current?
 
-    machine.stats.command_usage[machine.ip] = 0 unless machine.stats.command_usage[machine.ip]?
+    unless machine.stats.command_usage[machine.ip]?
+      machine.stats.command_usage[machine.ip] = 0
+
     ++machine.stats.command_usage[machine.ip]
 
-    unless _eval(current, machine, 0, snapshots)
-      if snapshots and not machine.snaps[machine.steps]?
-        machine.snaps[machine.steps] = [machine.ip]
-      return machine.error
+    machine.snaps[machine.steps] = [machine.ip] if snapshots
 
-    if snapshots and not machine.snaps[machine.steps]?
-      machine.snaps[machine.steps] = [machine.ip]
+    return machine.error unless _eval(current, machine, 0, snapshots)
 
     ++machine.ip
     ++machine.steps
@@ -89,7 +100,7 @@ get_first_memory_snapshot = (machine) ->
 
   if machine['input_layout']?
     for key, index in Object.keys(machine['input_layout'])
-      machine.memory[machine.input_layout[key]] = machine[input][index] ? 0
+      machine.memory[machine.input_layout[key]] = machine.input[index] ? 0
 
   return snapshot
 
@@ -114,21 +125,21 @@ ast = (input, machine, ip) ->
   while machine.code[ip]?
     ++ip
 
-  if (m = /^(INPUT|OUTPUT)(.+)$/)?
+  if (m = /^(INPUT|OUTPUT)(.+)$/.exec(input))?
     if m[2] is ''
       machine.error = "#{ip}> #{m[1]} expects an argument"
       return [-1]
 
     ret = ast_eval_io(m[2], machine)
     if m[1] is 'INPUT'
-      machine[input_layout] = ret
+      machine['input_layout'] = ret
     else
-      machine[output_layout] = ret
+      machine['output_layout'] = ret
     return [-1, ret]
 
   machine.lines[ip] = line
 
-  return [ip, get_ast(line, machine, ip)]
+  return [ip, get_ast(input, machine, ip)]
 
 ast_eval_io = (input, machine) ->
   if input.indexOf(' ') isnt -1
@@ -274,25 +285,6 @@ ast_assign = (_left, _right, machine, ip) ->
   else return report(machine, "#{ip}> Expected reg, mem or mmem, got: #{left[0]}(#{_left})")
   return ['assign', left, right]
 
-eval_funcs =
-  imm: eval_imm
-  reg: eval_mem
-  mem: eval_mem
-  mmem: eval_mmem
-  algo: eval_algo
-  cond: eval_cond
-  if: eval_if
-  jump: eval_jump
-  assign: eval_assign
-_eval = (ast, machine, args...) ->
-  if ast[0] is 'halt'
-    return
-  if eval_funcs[ast[0]]?
-    return eval_funcs[ast[0]](ast, machine, args)
-  else
-    machine.error = "AST Element #{ast[0]} not supported"
-    return
-
 eval_imm = (ast) ->
   ast[1]
 
@@ -329,7 +321,7 @@ eval_algo = (ast, machine) ->
 
 eval_cond = (ast, machine) ->
   return unless (val = _eval(ast[1], machine))?
-  
+
   if ast[2] is '<'
     return val < 0
   else if ast[2] is '<='
@@ -363,6 +355,25 @@ eval_assign = (ast, machine) ->
   add_snapshot(machine, left, eval(ast[2], machine, 1)) if machine.snaps
   return 1
 
+eval_funcs =
+  imm: eval_imm
+  reg: eval_mem
+  mem: eval_mem
+  mmem: eval_mmem
+  algo: eval_algo
+  cond: eval_cond
+  if: eval_if
+  jump: eval_jump
+  assign: eval_assign
+_eval = (ast, machine, args...) ->
+  if ast[0] is 'halt'
+    return
+  if eval_funcs[ast[0]]?
+    return eval_funcs[ast[0]](ast, machine, args)
+  else
+    machine.error = "AST Element #{ast[0]} not supported"
+    return
+
 inc_mem_stat = (machine, addr, type) ->
   return if type is 2
   unless(machine.stats.memory_usage[addr])?
@@ -375,5 +386,3 @@ add_snapshot = (machine, addr, value) ->
 report = (machine, message) ->
   message.error = message
   return
-
-s
