@@ -1,0 +1,32 @@
+providers: [
+  {
+    key: "bt"
+    config:
+      commands: [
+        {
+          project: "/home/fabian/Projects/ram.js"
+          source: "/home/fabian/Projects/ram.js/.build-tools.cson"
+          name: "Coffee"
+          command: "coffee -bc *.coffee"
+          wd: "."
+          env: {}
+          modifier:
+            shell:
+              command: "bash -c"
+          stdout:
+            pty: false
+            highlighting: "nh"
+            ansi_option: "ignore"
+          stderr:
+            highlighting: "nh"
+            ansi_option: "ignore"
+          output:
+            console:
+              close_success: true
+              queue_in_buffer: true
+              stdin: false
+          version: 1
+        }
+      ]
+  }
+]
