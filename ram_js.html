@@ -1,0 +1,52 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html"/>
+    <meta http-equiv="Content-Type" content="text/html;charset=ISO-8859-1"/>
+    <title>RAM.js</title>
+    <style type="text/css">
+      .hidden {
+        display: none;
+      }
+      #error {
+        color: red;
+      }
+    </style>
+    <script type="text/javascript" src="ram.js"></script>
+  </head>
+  <body>
+    <h1>RAM.js</h1>
+    <h2>Eine bessere RAM-Maschine!</h2>
+    <table>
+      <tbody>
+        <tr><td>Eingabe eines besseren RAM-Programms:</td></tr>
+        <tr><td><textarea id="ram_program" rows="30" cols="80" style="background-color: silver;"></textarea></td>
+        </tr>
+        <tr><td>Eingabewerte (durch Leerzeichen getrennt): <input id="input" type="text" name="input" value=""/></td></tr>
+      </tbody>
+    </table>
+    <input type="button" value="Starte Programm" onclick="starteRam();"/>
+    <div id="error"></div>
+    <div id="results" class="hidden">
+      <div class="output"><h3>Ausgabe:</h3><div id="output"></div></div>
+      <div class="code_stats"><h3>Statistik (Programm): <b id="code_total"></b></h3><div id="code_stats"></div></div>
+      <div class="mem_stats"><h3>Statistik (Speicher): <b id="mem_total"></b></h3><div id="mem_stats"></div></div>
+      <div class="memory_snapshots"><h3>Speicherverlauf:</h3><div id="mem_snapshots"></div></div>
+    </div>
+    <p>
+      Beispiele:
+    </p>
+    <ul>
+      <li><a href="http://isl-s-01.htw-saarland.de/ramses/examples/binary.txt">binary</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/binomial.txt">binomial</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/division_mit_rest.txt">division_mit_rest</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/endlos.txt">endlos</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/maximum.txt">maximum</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/maximum2.txt">maximum2</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/maximum3.txt">maximum3</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/potenz.txt">potenz</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/primzahl.txt">primzahl</a></li>
+      <li> <a href="http://isl-s-01.htw-saarland.de/ramses/examples/summe.txt">summe</a></li>
+    </ul>
+  </body>
+</html>

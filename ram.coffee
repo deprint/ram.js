@@ -15,13 +15,112 @@
 #along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 starteRam = ->
+  clearError()
   input = document.getElementById('ram_program')
+  input_values = document.getElementById('input').value.split(/\s+/)
+  abort = false
+  input_val = []
+  input_values.forEach (c) ->
+    return if c is ''
+    unless isNaN(n = parseInt(c))
+      input_val.push n
+      return
+    showError("Could not parse integer: #{c}")
+    abort = true
   machine = asl(input.value)
-  return input.value = machine.error if machine.error isnt ''
-  unless run(machine, [3], 1000, true)
-    input.value = JSON.stringify(get_output(machine))
+  if machine['input_layout']?
+    return if abort
+    if Object.keys(machine.input_layout).length isnt input_val.length
+      console.log input_val
+      console.log machine.input_layout
+      return showError('INPUT layout does not match input string')
   else
-    input.value = machine.error
+    input_values = []
+  return showError(machine.error) if machine.error isnt ''
+  unless run(machine, input_val, 1000, true)
+    displayOutput(machine)
+    displayCode(machine)
+    displayMem(machine)
+    displaySnapshots(machine)
+    showOutput()
+  else
+    showError(machine.error)
+
+clearError = ->
+  document.getElementById('error').classList.add 'hidden'
+
+showError = (error) ->
+  e = document.getElementById('error')
+  e.innerHTML = error
+  e.classList.remove 'hidden'
+  document.getElementById('results').classList.add 'hidden'
+
+showOutput = ->
+  document.getElementById('results').classList.remove 'hidden'
+
+regs =
+  a: -4
+  i1: -3
+  i2: -2
+  i3: -1
+num_sort = (a, b) ->
+  a = if regs[a]? then regs[a] else parseInt(a)
+  b = if regs[b]? then regs[b] else parseInt(b)
+  return -1 if a < b
+  return 0 if a is b
+  return 1 if a > b
+
+displayOutput = (machine) ->
+  output = get_output(machine)
+  str = '<table><tr><th>Stelle</th><th>Wert</th></tr>'
+  for key in Object.keys(output).sort(num_sort)
+    str += "<tr><td>#{key}</td><td>#{output[key]}</td></tr>"
+  document.getElementById('output').innerHTML = str + '</table>'
+
+displayCode = (machine) ->
+  code = get_code_stats(machine)
+  total = 0
+  str = '<table><tr><th>Zeile</th><th>#Aufrufe</th><th>Code</th></tr>'
+  for key in Object.keys(code).sort(num_sort)
+    total += code[key]
+    str += "<tr><td>#{key}</td><td>#{code[key]}</td><td>#{get_line(machine, key)}</td></tr>"
+  document.getElementById('code_stats').innerHTML = str + '</table>'
+  document.getElementById('code_total').innerHTML = total + ' Aufrufe'
+
+displayMem = (machine) ->
+  mem = get_mem_stats(machine)
+  total = [0, 0]
+  str = '<table><tr><th>Stelle</th><th>#Lesen</th><th>#Schreiben</th></tr>'
+  for key in Object.keys(mem).sort(num_sort)
+    total[0] += mem[key][0]
+    total[1] += mem[key][1]
+    str += "<tr><td>#{key}</td><td>#{mem[key][0]}</td><td>#{mem[key][1]}</td></tr>"
+  document.getElementById('mem_stats').innerHTML = str + '</table>'
+  document.getElementById('mem_total').innerHTML = "#{total[0]} Lesen/#{total[1]} Schreiben"
+
+displaySnapshots = (machine) ->
+  snapshots = get_snapshots(machine)
+  snapshot = get_first_memory_snapshot(machine)
+  slots = Object.keys(snapshot).sort(num_sort)
+  snapshot_ids = Object.keys(snapshots).sort(num_sort)
+
+  str = '<table><tr><th>Zeitpunkt</th>'
+  for id in slots
+    str += "<th>#{id}</th>"
+  str += '<th>Stelle</th><th>Zeile</th></tr>'
+  str += '<tr><td>-</td>'
+  for id in slots
+    str += "<td>#{snapshot[id]}</td>"
+  str += '<td>-</td><td>Ausgangspunkt</td></tr>'
+
+  for id in snapshot_ids
+    replay_snapshot(machine, snapshot, id, id)
+    str += "<tr><td>#{id}</td>"
+    for slot in slots
+      str += "<td>#{snapshot[slot]}</td>"
+    str += "<td>#{snapshots[id][0]}</td><td>#{get_line(machine, snapshots[id][0])}</td></tr>"
+
+  document.getElementById('mem_snapshots').innerHTML = str + '</table>'
 
 asl = (input) ->
   machine =
@@ -31,10 +130,10 @@ asl = (input) ->
   ip = -1
   for line in input.split('\n')
     line = line.trim()
-    continue if input is ''
+    continue if line is ''
     [n_ip, value] = ast(line, machine, ip)
-    continue if n_ip is -1
     break unless value?
+    continue if n_ip is -1
     ip = n_ip
     machine.code[ip] = value
   machine
@@ -51,13 +150,12 @@ run = (machine, input, limit = -1, snapshots) ->
   machine['snaps'] = {} if snapshots?
 
   if machine['input_layout']?
-    for key, index in Object.keys(machine['input_layout'])
-      machine.memory[machine.input_layout[key]] = machine.input[index] ? 0
+    for key in Object.keys(machine['input_layout'])
+      machine.memory[machine.input_layout[key]] = machine.input[key] ? 0
 
   while limit is -1 or machine.steps < limit
     current = machine.code[machine.ip]
-
-    return machine.error = "Reached nocode at #{machine.ip}" unless current?
+    return machine.error = "Reached nocode at #{machine.ip} step #{machine.steps}" unless current?
 
     unless machine.stats.command_usage[machine.ip]?
       machine.stats.command_usage[machine.ip] = 0
@@ -99,8 +197,9 @@ get_first_memory_snapshot = (machine) ->
     snapshot[snapshots[k][1]] = 0
 
   if machine['input_layout']?
-    for key, index in Object.keys(machine['input_layout'])
-      machine.memory[machine.input_layout[key]] = machine.input[index] ? 0
+    for key in Object.keys(machine['input_layout'])
+      id = machine['input_layout'][key]
+      snapshot[id] = if (c = machine['input'][id])? then c else 0
 
   return snapshot
 
@@ -120,7 +219,7 @@ ast = (input, machine, ip) ->
   ++ip
   if (m = /^(\d+):\s*(.+)/.exec(input))?
     ip = m[1]
-    line = m[2]
+    input = m[2]
 
   while machine.code[ip]?
     ++ip
@@ -137,7 +236,7 @@ ast = (input, machine, ip) ->
       machine['output_layout'] = ret
     return [-1, ret]
 
-  machine.lines[ip] = line
+  machine.lines[ip] = input
 
   return [ip, get_ast(input, machine, ip)]
 
@@ -150,12 +249,11 @@ ast_eval_io = (input, machine) ->
       continue if p is ''
       r = ast_eval_io(p, machine)
       return unless r?
-      ret.push r
+      ret = ret.concat r
 
     if ret.length is 0
       machine.error = 'Command expects argument'
-
-    return r
+    return ret
   else
     if (m = /^(\d+)\.\.(\d+)$/.exec(input))?
       ret = []
@@ -170,7 +268,7 @@ get_ast = (input, machine, ip) ->
   if (m = /^(\-?\d+(?:\.\d+)?)$/.exec(input))
     ast_imm(m[1])
   else if (m = /^(a|i|i1|i2|i3)$/.exec(input))
-    ast_reg(m[1] is 'i' ? 'i1' : m[1])
+    ast_reg(if m[1] is 'i' then 'i1' else m[1])
   else if (m = /^s\[\s*(.+?)\s*\]$/.exec(input))
     ast_mem(m[1], machine, ip)
   else if (m = /^jump\s+(.+)$/.exec(input))
@@ -195,7 +293,7 @@ ast_imm = (imm) ->
 ast_reg = (reg) ->
   ['reg', reg]
 
-algo =
+algo_right =
   imm: 1
   mem: 1
   mmem: 1
@@ -210,7 +308,7 @@ ast_algo = (left, op, right, machine, ip) ->
     return report(machine, "#{ip}> Expected imm, mem or mmem, got: #{right[0]}(#{right})")
 
   type = left[1] is 'a'
-  unless(type || (right[0] is 'imm' && (op is '+' || op is '-')))
+  unless(type or (right[0] is 'imm' and (op is '+' or op is '-')))
     return report(machine, "#{ip}> Index register only allows addition or subtraction with imm (#{left}#{op}#{right}")
 
   return ['algo', type, left, op, right]
@@ -282,11 +380,14 @@ ast_assign = (_left, _right, machine, ip) ->
   else if left[0] is 'mem'
     unless(right[0] is 'reg')
       return report(machine, "#{ip}> Expected reg, got: #{right[0]}(#{_right})")
+  else if left[0] is 'mmem'
+    unless(right[0] is 'reg' and right[1] is 'a')
+      return report(machine, "#{ip}> Expected register a, got: #{right[0]}(#{_right})")
   else return report(machine, "#{ip}> Expected reg, mem or mmem, got: #{left[0]}(#{_left})")
   return ['assign', left, right]
 
 eval_imm = (ast) ->
-  ast[1]
+  parseInt(ast[1])
 
 eval_mem = (ast, machine, type = 0) ->
   unless machine.memory[ast[1]]?
@@ -294,7 +395,7 @@ eval_mem = (ast, machine, type = 0) ->
 
   inc_mem_stat(machine, ast[1], type)
 
-  return machine.memory[ast[1]] unless type > 0
+  return parseInt(machine.memory[ast[1]]) unless type > 0
   return ast[1]
 
 eval_mmem = (ast, machine, type = 0) ->
@@ -327,9 +428,9 @@ eval_cond = (ast, machine) ->
   else if ast[2] is '<='
     return val <= 0
   else if ast[2] is '='
-    return val = 0
+    return val is 0
   else if ast[2] is '!='
-    return val != 0
+    return val isnt 0
   else if ast[2] is '>='
     return val >= 0
   else if ast[2] is '>'
@@ -352,7 +453,7 @@ eval_assign = (ast, machine) ->
   return unless (left = _eval(ast[1], machine, 1))?
   return unless (right = _eval(ast[2], machine))?
   machine.memory[left] = right
-  add_snapshot(machine, left, eval(ast[2], machine, 1)) if machine.snaps
+  add_snapshot(machine, left, right) if machine.snaps
   return 1
 
 eval_funcs =
@@ -377,12 +478,14 @@ _eval = (ast, machine, args...) ->
 inc_mem_stat = (machine, addr, type) ->
   return if type is 2
   unless(machine.stats.memory_usage[addr])?
-    machine.stats.memory_usage[addr] = [0,0]
-  ++machine.stats.memory_usage[addr][type ? 1 : 0]
+    machine.stats.memory_usage[addr] = [0, 0]
+  ++machine.stats.memory_usage[addr][if type > 0 then 1 else 0]
 
 add_snapshot = (machine, addr, value) ->
-  machine.snaps[machine.steps].push [addr, value]
+  machine.snaps[machine.steps].push addr
+  machine.snaps[machine.steps].push value
 
 report = (machine, message) ->
-  message.error = message
+  console.log message
+  machine.error = message
   return
