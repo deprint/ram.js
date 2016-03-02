@@ -27,6 +27,30 @@ providers: [
               stdin: false
           version: 1
         }
+        {
+          project: "/home/fabian/Projects/ram.js"
+          source: "/home/fabian/Projects/ram.js/.build-tools.cson"
+          name: "UglifyJS"
+          command: "for f in *.js; do uglifyjs -o `basename $f .js`_min.js $f; done"
+          wd: "."
+          env: {}
+          modifier:
+            shell:
+              command: "bash -c"
+          stdout:
+            pty: false
+            highlighting: "nh"
+            ansi_option: "ignore"
+          stderr:
+            highlighting: "nh"
+            ansi_option: "ignore"
+          output:
+            console:
+              close_success: true
+              queue_in_buffer: true
+              stdin: false
+          version: 1
+        }
       ]
   }
 ]
