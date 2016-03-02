@@ -68,7 +68,10 @@ run = (machine, input, limit = -1, snapshots) ->
 get_output = (machine) ->
   ret = {}
   for id in machine.output_layout
-    ret[id] = machine.memory[id]
+    if (m = machine.memory[id])?
+      ret[id] = m
+    else
+      ret[id] = 0
   return ret
 
 get_code_stats = (machine) ->
